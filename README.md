@@ -1,6 +1,9 @@
 # 🦎 Lizard Flick — Reflex Challenge Game
 
+<img src="https://github.com/user-attachments/assets/7c2dabf4-c681-4c15-97c0-110f31c6395f" align="right">
 Lizard Flick is a vibrant, reflex-based game where speed and precision determine your score. Flick a lively lizard across the screen, rack up points, and compete against the clock in colorful, animated environments!
+
+
 
 ## Features
 
