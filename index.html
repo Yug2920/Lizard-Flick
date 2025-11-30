@@ -6,30 +6,325 @@
     <title>Lizard Flick</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* (The complete CSS code is here) */
-        /* ... */
+        /* Custom styles for the game elements and animation */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
+
+        :root {
+            --lizard-color: #4CAF50; /* Green */
+            --lizard-border: #388E3C; /* Darker Green */
+            --tongue-color: #F44336; /* Red */
+            --fly-color: #212121; /* Dark Grey */
+            --catch-distance: 80px; /* How far the tongue reaches */
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #121212; /* Dark background */
+        }
+
+        .game-area {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            height: 500px;
+            background-color: #2e7d32; /* Jungle green background */
+            border-radius: 1rem;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            overflow: hidden;
+            touch-action: manipulation; /* Prevents double-tap zoom on touch devices */
+            margin-top: 1rem;
+        }
+
+        /* --- LIZARD STYLING --- */
+        .lizard-head {
+            position: absolute;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px; /* Wider */
+            height: 50px; /* Taller */
+            background-color: var(--lizard-color);
+            border-top-left-radius: 50px;
+            border-top-right-radius: 50px;
+            z-index: 10;
+            border: 3px solid var(--lizard-border); /* Defined border */
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.4);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            padding-top: 10px;
+        }
+
+        .lizard-eye {
+            width: 10px;
+            height: 10px;
+            background-color: white;
+            border-radius: 50%;
+            border: 1px solid #222;
+            position: relative;
+            top: -10px; /* Position slightly above the curve */
+        }
+        .lizard-pupil {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 5px;
+            height: 5px;
+            background-color: #222;
+            border-radius: 50%;
+        }
+        /* -------------------------- */
+
+        .tongue {
+            position: absolute;
+            bottom: 50px; /* Starts just above the new, larger head */
+            left: 50%;
+            width: 4px;
+            height: 0; /* Initial height */
+            background-color: var(--tongue-color);
+            transform: translateX(-50%);
+            transition: height 0.05s ease-out; /* Fast extension */
+            z-index: 9;
+            border-radius: 2px;
+        }
+
+        .tongue.flicked {
+            height: var(--catch-distance);
+        }
+
+        .fly {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background-color: var(--fly-color);
+            border-radius: 50%;
+            transition: all 0.3s ease-in-out;
+            box-shadow: 0 0 8px rgba(0,0,0,0.5);
+            cursor: pointer;
+            z-index: 8;
+        }
+
+        .message-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 1rem 2rem;
+            background-color: rgba(0, 0, 0, 0.9);
+            color: white;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 1.25rem;
+            font-weight: bold;
+            display: none;
+            z-index: 20;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+        }
+
+        .button-glow {
+            transition: background-color 0.1s, transform 0.1s;
+        }
+        .button-glow:active {
+            background-color: #1565C0; /* Darker blue on press */
+            transform: scale(0.98);
+        }
     </style>
 </head>
 <body class="p-4 flex flex-col items-center min-h-screen">
 
+    <!-- Tailwind Config for Inter font -->
     <script>
-        /* (The Tailwind config script is here) */
-        /* ... */
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
     </script>
 
     <header class="text-center mb-4 p-2 w-full max-w-sm">
-        </header>
+        <h1 class="text-3xl font-bold text-white mb-2">Lizard Flick!</h1>
+        <p class="text-sm text-gray-400">Catch the fly when it's right above you!</p>
+        <div id="scoreDisplay" class="text-xl text-yellow-400 mt-2 p-1 bg-gray-800 rounded-lg">Score: 0</div>
+    </header>
 
     <div id="gameArea" class="game-area">
+        <!-- The Fly (Target) -->
+        <div id="fly" class="fly"></div>
+        
+        <!-- The Lizard Head with Eyes -->
+        <div class="lizard-head">
+            <div class="lizard-eye"><div class="lizard-pupil"></div></div>
+            <div class="lizard-eye"><div class="lizard-pupil"></div></div>
         </div>
 
-    <button id="flickButton" class="mt-6 w-full max-w-xs p-4 bg-blue-600 ...">
+        <!-- The Tongue -->
+        <div id="tongue" class="tongue"></div>
+
+        <!-- Game Message Box (for Start/Catch messages) -->
+        <div id="messageBox" class="message-box">
+            Tap to Start!
+        </div>
+    </div>
+
+    <!-- Control Button - Acts as the flick trigger on mobile -->
+    <button id="flickButton" class="mt-6 w-full max-w-xs p-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg button-glow uppercase tracking-wider">
         Flick Tongue
     </button>
 
     <script type="module">
-        // (The complete JavaScript game logic is here)
-        // ...
+        // Game Constants and State
+        const TONGUE_FLICK_DURATION_MS = 100; // How long the tongue stays extended
+        const FLY_MOVEMENT_INTERVAL_MS = 1500; // How often the fly moves
+        const CATCH_DISTANCE = 80; // Must match the CSS var(--catch-distance)
+        const LIZARD_HEAD_HEIGHT = 50; // The new, fixed height of the lizard head
+        const LIZARD_X_TOLERANCE = 30; // How far off-center the fly can be caught
+
+        let score = 0;
+        let gameRunning = false;
+        let flyInterval;
+
+        // DOM Elements
+        const gameArea = document.getElementById('gameArea');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const flickButton = document.getElementById('flickButton');
+        const tongue = document.getElementById('tongue');
+        const fly = document.getElementById('fly');
+        const messageBox = document.getElementById('messageBox');
+
+        // Initial setup for fly position
+        let flyX = 0;
+        let flyY = 0;
+
+        /**
+         * Utility to display a temporary message in the center of the game area.
+         * @param {string} text - The message to display.
+         * @param {number} duration - Duration in milliseconds (default 1000).
+         */
+        function showMessage(text, duration = 1000) {
+            messageBox.textContent = text;
+            messageBox.style.display = 'block';
+
+            // Hide the message after the duration
+            setTimeout(() => {
+                if (gameRunning) {
+                    messageBox.style.display = 'none';
+                }
+            }, duration);
+        }
+
+        /**
+         * Sets a new random position for the fly within the game area boundaries.
+         */
+        function moveFly() {
+            const areaWidth = gameArea.clientWidth;
+            const areaHeight = gameArea.clientHeight;
+            const flySize = fly.clientWidth;
+            
+            // Avoid placing the fly inside the lizard head area (bottom LIZARD_HEAD_HEIGHT)
+            const playableHeight = areaHeight - LIZARD_HEAD_HEIGHT - 20;
+
+            // Random X position (from 10px to width - 10px - flySize)
+            flyX = Math.random() * (areaWidth - flySize - 20) + 10;
+            // Random Y position (from 10px to playableHeight)
+            flyY = Math.random() * (playableHeight - 10) + 10;
+
+            fly.style.left = `${flyX}px`;
+            fly.style.top = `${flyY}px`;
+        }
+
+        /**
+         * Checks if the extended tongue has collided with the fly.
+         */
+        function checkCollision() {
+            // Lizard fixed position:
+            const lizardTopY = gameArea.clientHeight - LIZARD_HEAD_HEIGHT;
+            const lizardCenterX = gameArea.clientWidth / 2;
+
+            // Fly center position
+            const flyCenterX = flyX + (fly.clientWidth / 2);
+            const flyCenterY = flyY + (fly.clientHeight / 2);
+
+            // 1. Check if the fly is within the horizontal tolerance (must be above the head)
+            const distanceX = Math.abs(lizardCenterX - flyCenterX);
+            const isDirectlyAbove = distanceX < LIZARD_X_TOLERANCE; 
+
+            if (!isDirectlyAbove) return;
+
+            // 2. Check if the fly is within the vertical reach of the tongue
+            // Distance Y is measured from the top of the lizard head to the fly's center
+            const distanceY = lizardTopY - flyCenterY;
+            
+            if (distanceY >= 0 && distanceY <= CATCH_DISTANCE) {
+                // SUCCESS: Collision detected!
+                score++;
+                scoreDisplay.textContent = `Score: ${score}`;
+                showMessage("Caught!", 700);
+                // Move the fly immediately
+                moveFly();
+            }
+        }
+
+        /**
+         * Handles the main game action: flicking the tongue.
+         */
+        function flickTongue() {
+            if (!gameRunning) return startGame();
+
+            // 1. Extend the tongue (CSS transition handles the speed)
+            tongue.classList.add('flicked');
+
+            // 2. Check for collision immediately after extension
+            checkCollision();
+
+            // 3. Retract the tongue after the duration
+            setTimeout(() => {
+                tongue.classList.remove('flicked');
+            }, TONGUE_FLICK_DURATION_MS);
+        }
+
+        /**
+         * Starts the game and initializes state.
+         */
+        function startGame() {
+            gameRunning = true;
+            score = 0;
+            scoreDisplay.textContent = `Score: ${score}`;
+            messageBox.style.display = 'none';
+            flickButton.textContent = 'FLICK TONGUE';
+            
+            // Start the fly movement loop
+            moveFly();
+            fly.style.display = 'block';
+
+            if (flyInterval) clearInterval(flyInterval);
+            flyInterval = setInterval(moveFly, FLY_MOVEMENT_INTERVAL_MS);
+        }
+
+        /**
+         * Event Listeners
+         */
+        // Use the button for desktop click/mobile tap
+        flickButton.addEventListener('click', flickTongue);
+
+        // Allow tapping anywhere on the game area or screen for mobile responsiveness
+        gameArea.addEventListener('click', flickTongue);
+
+        // Initial call to set up the start screen
+        fly.style.display = 'none';
+        showMessage("Tap or Click to Play!", 99999); // Show until the first tap
+
+        // Add a safety check for canvas resizing (re-centering)
+        window.addEventListener('resize', () => {
+             // Re-run moveFly to ensure the current fly position is within the new bounds
+            if(gameRunning) {
+                moveFly();
+            }
+        });
+
     </script>
 </body>
 </html>
